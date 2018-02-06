@@ -22,7 +22,7 @@ Grammar, in some probably understandable notation:
               | "spawn" <expr>
 
 <statement> ::= <expr> ";"
-              | <expr> "!" <expr>
+              | <expr> "!" <expr> ";"
               | "let" <variable> "=" <expr> ";"
 
 <variable>  ::= [a-zA-Z_][a-zA-Z0-9_]*
