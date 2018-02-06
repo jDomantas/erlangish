@@ -124,3 +124,14 @@ selector ! true;
 selector ! 'print_this;
 selector ! 'dont_print_this;
 ```
+
+## Installing
+
+If you have rust and cargo installed, you can build this from source. This
+requires nightly toolchain, because of that delicious `#![feature(nll)]`.
+
+```
+git clone https://github.com/jDomantas/erlangish.git
+cd erlangish
+cargo run -- repl
+```
