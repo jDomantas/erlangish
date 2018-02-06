@@ -93,7 +93,7 @@ impl Actor {
                 Ok(Value::Closure(Rc::new(self.env.clone()), stmts.clone()))
             }
             ast::Expr::Receive => {
-                Ok(self.queue.pop_front().expect("cannot receive"))
+                Ok(self.queue.pop_front().expect("internal error: cannot receive"))
             }
             ast::Expr::Spawn(ref body) => {
                 if let Value::Closure(env, code) = self.eval_expr(body, spawner)? {

@@ -17,9 +17,9 @@ impl Expr {
             Expr::Block(_) |
             Expr::Var(_) |
             Expr::Symbol(_) |
-            Expr::Root |
-            Expr::Spawn(_) => 0,
+            Expr::Root => 0,
             Expr::Receive => 1,
+            Expr::Spawn(ref expr) => expr.receive_count(),
         }
     }
 }
