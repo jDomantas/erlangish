@@ -4,6 +4,27 @@ use std::rc::Rc;
 use ast;
 
 
+#[derive(Debug)]
+pub enum Error {
+    SendToNonActor,
+    UnboundVariable(String),
+    SpawningNonBlock,
+    RootDeadlock,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::SendToNonActor => write!(f, "tried to send message to non-actor"),
+            Error::UnboundVariable(ref var) => write!(f, "unbound variable: `{}`", var),
+            Error::SpawningNonBlock => write!(f, "tried to spawn a non-block"),
+            Error::RootDeadlock => write!(f, "root got into a deadlock"),
+        }
+    }
+}
+
+pub type Result<T> = ::std::result::Result<T, Error>;
+
 #[derive(Debug, Clone, Default)]
 pub struct Env {
     bindings: HashMap<Rc<str>, Value>,
@@ -11,13 +32,13 @@ pub struct Env {
 }
 
 impl Env {
-    fn lookup(&self, name: &str) -> Value {
+    fn lookup(&self, name: &str) -> Result<Value> {
         if let Some(value) = self.bindings.get(name).cloned() {
-            value
+            Ok(value)
         } else if let Some(ref env) = self.next {
             env.lookup(name)
         } else {
-            panic!("variable `{}` is not bound", name);
+            Err(Error::UnboundVariable(String::from(name)))
         }
     }
 }
@@ -63,19 +84,19 @@ impl Actor {
         self.position >= self.code.len()
     }
 
-    fn eval_expr<F>(&mut self, expr: &ast::Expr, spawner: &mut F) -> Value
+    fn eval_expr<F>(&mut self, expr: &ast::Expr, spawner: &mut F) -> Result<Value>
     where
         F: FnMut(Actor) -> Value
     {
         match *expr {
             ast::Expr::Block(ref stmts) => {
-                Value::Closure(Rc::new(self.env.clone()), stmts.clone())
+                Ok(Value::Closure(Rc::new(self.env.clone()), stmts.clone()))
             }
             ast::Expr::Receive => {
-                self.queue.pop_front().expect("cannot receive")
+                Ok(self.queue.pop_front().expect("cannot receive"))
             }
             ast::Expr::Spawn(ref body) => {
-                if let Value::Closure(env, code) = self.eval_expr(body, spawner) {
+                if let Value::Closure(env, code) = self.eval_expr(body, spawner)? {
                     let env = Env {
                         bindings: HashMap::new(),
                         next: Some(env),
@@ -86,19 +107,19 @@ impl Actor {
                         env,
                         queue: VecDeque::new(),
                     };
-                    spawner(actor)
+                    Ok(spawner(actor))
                 } else {
-                    panic!("cannot spawn not-a-block");
+                    Err(Error::SpawningNonBlock)
                 }
             }
             ast::Expr::Var(ref name) => {
                 self.env.lookup(name)
             }
             ast::Expr::Symbol(ref sym) => {
-                Value::Symbol(sym.clone())
+                Ok(Value::Symbol(sym.clone()))
             }
             ast::Expr::Root => {
-                Value::ActorHandle(0)
+                Ok(Value::ActorHandle(0))
             }
         }
     }
@@ -133,7 +154,7 @@ impl Vm {
         }
     }
 
-    fn run_step(&mut self, handle: u64) {
+    fn run_step(&mut self, handle: u64) -> Result<()> {
         let handle_ref = &mut self.next_handle;
         let list_ref = &mut self.spawn_list;
         let mut spawner = |actor| {
@@ -148,28 +169,34 @@ impl Vm {
                 Some(stmt) if stmt.receive_count() > actor.queue.len() => {
                     let actor = self.active_actors.remove(&handle).unwrap();
                     self.parked_actors.insert(handle, actor);
+                    Ok(())
                 }
                 Some(&ast::Statement::Bind(ref to, ref expr)) => {
-                    let value = actor.eval_expr(expr, &mut spawner);
+                    let value = actor.eval_expr(expr, &mut spawner)?;
                     actor.env.bindings.insert(to.clone(), value);
                     actor.position += 1;
+                    Ok(())
                 }
                 Some(&ast::Statement::Expr(ref expr)) => {
-                    actor.eval_expr(expr, &mut spawner);
+                    actor.eval_expr(expr, &mut spawner)?;
                     actor.position += 1;
+                    Ok(())
                 }
                 Some(&ast::Statement::Send(ref to, ref value)) => {
-                    let to = actor.eval_expr(to, &mut spawner);
-                    let value = actor.eval_expr(value, &mut spawner);
+                    let to = actor.eval_expr(to, &mut spawner)?;
+                    let value = actor.eval_expr(value, &mut spawner)?;
                     if let Value::ActorHandle(handle) = to {
                         actor.position += 1;
                         self.send_to_actor(handle, value);
+                        Ok(())
                     } else {
-                        panic!("cannot send to not-an-actor");
+                        Err(Error::SendToNonActor)
                     }
                 }
-                None => {}
+                None => Ok(()),
             }
+        } else {
+            Ok(())
         }
     }
 
@@ -184,17 +211,18 @@ impl Vm {
         }
     }
 
-    fn step_all(&mut self) {
+    fn step_all(&mut self) -> Result<()> {
         self.updated_handles.clear();
         self.updated_handles.extend(self.active_actors.keys().cloned());
         let handles = ::std::mem::replace(&mut self.updated_handles, Vec::new());
         for &handle in &handles {
-            self.run_step(handle);
+            self.run_step(handle)?;
         }
         self.active_actors.extend(self.spawn_list.drain(..));
         self.updated_handles = handles;
         self.active_actors.retain(|&h, a| h == 0 || !a.is_completed());
         self.parked_actors.retain(|&h, a| h == 0 || !a.is_completed());
+        Ok(())
     }
 
     fn remove_root(&mut self) -> Actor {
@@ -225,16 +253,18 @@ impl Vm {
         }
     }
 
-    pub fn run_statement(&mut self, stmt: ast::Statement) {
+    pub fn run_statement(&mut self, stmt: ast::Statement) -> Result<()> {
         let mut root = self.remove_root();
         root.code = vec![stmt].into();
         root.position = 0;
         self.active_actors.insert(0, root);
         while !self.is_done() {
-            self.step_all();
+            self.step_all()?;
         }
-        if !self.root_mut().is_completed() {
-            panic!("encountered deadlock");
+        if self.root_mut().is_completed() {
+            Ok(())
+        } else {
+            Err(Error::RootDeadlock)
         }
     }
 

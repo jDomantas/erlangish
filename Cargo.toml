@@ -10,3 +10,5 @@ lalrpop = "0.14.0"
 [dependencies]
 lalrpop-util = "0.14.0"
 regex = "0.2.1"
+structopt = "0.1.7"
+structopt-derive = "0.1.0"

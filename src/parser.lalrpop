@@ -2,10 +2,12 @@ use ast::{Expr, Statement};
 
 grammar;
 
+pub Stmts: Vec<Statement> = <Stmt*>;
+
 pub Stmt: Statement = {
-    "let" <v:Var> "=" <e:Expr> => Statement::Bind(v.into(), e),
-    <Expr> "!" <Expr> => Statement::Send(<>),
-    Expr => Statement::Expr(<>),
+    "let" <v:Var> "=" <e:Expr> ";" => Statement::Bind(v.into(), e),
+    <Expr> "!" <Expr> ";" => Statement::Send(<>),
+    <Expr> ";" => Statement::Expr(<>),
 };
 
 pub Expr: Expr = {
@@ -13,7 +15,7 @@ pub Expr: Expr = {
     Var => Expr::Var(<>),
     "receive" => Expr::Receive,
     "spawn" <Expr> => Expr::Spawn(Box::new(<>)),
-    "{" <(<Stmt> ";")*> "}" => Expr::Block(<>.into()),
+    "{" <Stmts> "}" => Expr::Block(<>.into()),
     "root" => Expr::Root,
 };
 
