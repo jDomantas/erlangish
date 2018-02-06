@@ -9,6 +9,20 @@ A stupid toy programming language. Basically the only operations you can do are:
 Why "erlangish"? Erlang has actors. This language has actors. Ta-da. Don't judge
 me, naming is hard and I only spent an evening on making this.
 
+## Installing
+
+If you have rust and cargo installed, you can build this from source. This
+requires nightly toolchain, because of that delicious `#![feature(nll)]`.
+
+```
+git clone https://github.com/jDomantas/erlangish.git
+cd erlangish
+cargo run -- repl
+```
+
+If you don't want to build this from source and are on windows, there's a
+[windows binary attached to a github release](https://github.com/jDomantas/erlangish/releases/tag/v0.1.0).
+
 ## Language
 
 Grammar, in some probably understandable notation:
@@ -123,15 +137,4 @@ selector ! root;
 selector ! true;
 selector ! 'print_this;
 selector ! 'dont_print_this;
-```
-
-## Installing
-
-If you have rust and cargo installed, you can build this from source. This
-requires nightly toolchain, because of that delicious `#![feature(nll)]`.
-
-```
-git clone https://github.com/jDomantas/erlangish.git
-cd erlangish
-cargo run -- repl
 ```
