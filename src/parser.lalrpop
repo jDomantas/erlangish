@@ -1,0 +1,22 @@
+use ast::{Expr, Statement};
+
+grammar;
+
+pub Stmt: Statement = {
+    "let" <v:Var> "=" <e:Expr> => Statement::Bind(v.into(), e),
+    <Expr> "!" <Expr> => Statement::Send(<>),
+    Expr => Statement::Expr(<>),
+};
+
+pub Expr: Expr = {
+    Symbol => Expr::Symbol(<>.into()),
+    Var => Expr::Var(<>),
+    "receive" => Expr::Receive,
+    "spawn" <Expr> => Expr::Spawn(Box::new(<>)),
+    "{" <(<Stmt> ";")*> "}" => Expr::Block(<>.into()),
+    "root" => Expr::Root,
+};
+
+Symbol: String = r"'[a-zA-Z_][a-zA-Z_0-9]*" => String::from(&<>[1..]);
+
+Var: String = r"[a-zA-Z_][a-zA-Z_0-9]*" => String::from(<>);
