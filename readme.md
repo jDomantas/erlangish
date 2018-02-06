@@ -60,8 +60,7 @@ of the just spawned actor, to that you can send messages to it. Spawned actor
 will evaluate given block once, and then die.
 
 Statement evaluation rules:
-* Expression statements simply evaluates to expression and then discard the
-result.
+* Expression statements simply evaluates that expression and discard the result.
 * `<actor> ! <message>` will evaluate `<actor>` and then `<message>`, and push
 the message in the actor's message queue. `<actor>` must evaluate to an actor
 handle.
